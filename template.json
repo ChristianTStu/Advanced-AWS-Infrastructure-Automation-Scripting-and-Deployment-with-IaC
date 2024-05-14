@@ -1,0 +1,233 @@
+{
+    "AWSTemplateFormatVersion": "2010-09-09",
+    "Description": "AWS CloudFormation Template: Secure and Scalable Web Application Infrastructure",
+    "Resources": {
+      "MyVPC": {
+        "Type": "AWS::EC2::VPC",
+        "Properties": {
+          "CidrBlock": "10.0.0.0/16",
+          "EnableDnsSupport": true,
+          "EnableDnsHostnames": true,
+          "Tags": [
+            {
+              "Key": "Name",
+              "Value": "MyVPC"
+            }
+          ]
+        }
+      },
+      "InternetGateway": {
+        "Type": "AWS::EC2::InternetGateway",
+        "Properties": {
+          "Tags": [
+            {
+              "Key": "Name",
+              "Value": "MyInternetGateway"
+            }
+          ]
+        }
+      },
+      "VPCGatewayAttachment": {
+        "Type": "AWS::EC2::VPCGatewayAttachment",
+        "Properties": {
+          "VpcId": {
+            "Ref": "MyVPC"
+          },
+          "InternetGatewayId": {
+            "Ref": "InternetGateway"
+          }
+        }
+      },
+      "SubnetA": {
+        "Type": "AWS::EC2::Subnet",
+        "Properties": {
+          "VpcId": {
+            "Ref": "MyVPC"
+          },
+          "CidrBlock": "10.0.1.0/24",
+          "AvailabilityZone": "us-east-1a",
+          "Tags": [
+            {
+              "Key": "Name",
+              "Value": "SubnetA"
+            }
+          ]
+        }
+      },
+      "SubnetB": {
+        "Type": "AWS::EC2::Subnet",
+        "Properties": {
+          "VpcId": {
+            "Ref": "MyVPC"
+          },
+          "CidrBlock": "10.0.2.0/24",
+          "AvailabilityZone": "us-east-1b",
+          "Tags": [
+            {
+              "Key": "Name",
+              "Value": "SubnetB"
+            }
+          ]
+        }
+      },
+      "MySecurityGroup": {
+        "Type": "AWS::EC2::SecurityGroup",
+        "Properties": {
+          "GroupDescription": "Allow HTTP and SSH to EC2 instances",
+          "VpcId": {
+            "Ref": "MyVPC"
+          },
+          "SecurityGroupIngress": [
+            {
+              "IpProtocol": "tcp",
+              "FromPort": 22,
+              "ToPort": 22,
+              "CidrIp": "0.0.0.0/0"
+            },
+            {
+              "IpProtocol": "tcp",
+              "FromPort": 80,
+              "ToPort": 80,
+              "CidrIp": "0.0.0.0/0"
+            }
+          ]
+        }
+      },
+      "MyLaunchConfiguration": {
+        "Type": "AWS::AutoScaling::LaunchConfiguration",
+        "Properties": {
+          "ImageId": "ami-0eb5115914ccc4bc2",
+          "InstanceType": "t2.micro",
+          "SecurityGroups": [
+            {
+              "Ref": "MySecurityGroup"
+            }
+          ]
+        }
+      },
+      "MyAutoScalingGroup": {
+        "Type": "AWS::AutoScaling::AutoScalingGroup",
+        "Properties": {
+          "LaunchConfigurationName": {
+            "Ref": "MyLaunchConfiguration"
+          },
+          "MinSize": "1",
+          "MaxSize": "5",
+          "VPCZoneIdentifier": [
+            {
+              "Ref": "SubnetA"
+            },
+            {
+              "Ref": "SubnetB"
+            }
+          ]
+        }
+      },
+      "MyELB": {
+        "Type": "AWS::ElasticLoadBalancingV2::LoadBalancer",
+        "Properties": {
+          "Name": "MyELB",
+          "Subnets": [
+            {
+              "Ref": "SubnetA"
+            },
+            {
+              "Ref": "SubnetB"
+            }
+          ],
+          "SecurityGroups": [
+            {
+              "Ref": "MySecurityGroup"
+            }
+          ],
+          "Scheme": "internet-facing",
+          "LoadBalancerAttributes": [
+            {
+              "Key": "idle_timeout.timeout_seconds",
+              "Value": "60"
+            }
+          ]
+        }
+      },
+      "MyCloudWatchAlarm": {
+        "Type": "AWS::CloudWatch::Alarm",
+        "Properties": {
+          "AlarmDescription": "Alarm if CPU utilization exceeds 70%",
+          "Namespace": "AWS/EC2",
+          "MetricName": "CPUUtilization",
+          "Dimensions": [
+            {
+              "Name": "AutoScalingGroupName",
+              "Value": {
+                "Ref": "MyAutoScalingGroup"
+              }
+            }
+          ],
+          "Statistic": "Average",
+          "Period": "300",
+          "EvaluationPeriods": "1",
+          "Threshold": "70",
+          "ComparisonOperator": "GreaterThanThreshold",
+          "AlarmActions": [
+            {
+              "Ref": "MyAutoScalingGroup"
+            }
+          ]
+        }
+      },
+      "MyCloudTrail": {
+        "Type": "AWS::CloudTrail::Trail",
+        "Properties": {
+          "S3BucketName": {
+            "Ref": "MyS3Bucket"
+          },
+          "IsLogging": true
+        }
+      },
+      "MyNATGateway": {
+        "Type": "AWS::EC2::NatGateway",
+        "Properties": {
+          "AllocationId": {
+            "Fn::GetAtt": [
+              "MyEIP",
+              "AllocationId"
+            ]
+          },
+          "SubnetId": {
+            "Ref": "SubnetA"
+          }
+        }
+      },
+      "MyEIP": {
+        "Type": "AWS::EC2::EIP"
+      }
+    },
+    "Outputs": {
+      "LoadBalancerDNSName": {
+        "Description": "DNS name of the load balancer",
+        "Value": {
+          "Fn::GetAtt": [
+            "MyELB",
+            "DNSName"
+          ]
+        },
+        "Export": {
+          "Name": {
+            "Fn::Sub": "${AWS::StackName}-LoadBalancerDNSName"
+          }
+        }
+      },
+      "VPCId": {
+        "Description": "VPC Id",
+        "Value": {
+          "Ref": "MyVPC"
+        },
+        "Export": {
+          "Name": {
+            "Fn::Sub": "${AWS::StackName}-VPCId"
+          }
+        }
+      }
+    }
+  }
+  
