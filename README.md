@@ -1,4 +1,4 @@
-# Advanced-AWS-Infrastructure-Automation-Scripting-and-Deployment-with-IaC
+# Advanced AWS Infrastructure | Automation, Scripting, & Deployment with IaC
 
 Welcome to the Secure Cloud Infrastructure Deployment using IaC (Infrastructure as Code), Automation, and Scripting assignment. This project is designed to help you develop your skills in automating the provisioning and configuration of a secure, scalable web application infrastructure in the AWS cloud environment.
 
